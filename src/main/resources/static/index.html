@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>GolData API · REST con Spring Boot y MongoDB Atlas</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%BD%3C/text%3E%3C/svg%3E">
+    <link href="vendor/fonts/fonts.css" rel="stylesheet">
+    <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/app.css" rel="stylesheet">
+</head>
+<body class="landing">
+
+<nav class="l-nav">
+    <div class="container d-flex align-items-center justify-content-between">
+        <a class="brand" href="index.html"><span class="brand-mark"><i class="bi bi-braces"></i></span><span class="brand-name">GolData <span style="color:var(--lime-400)">API</span></span></a>
+        <div class="l-links d-none d-lg-block">
+            <a href="#endpoints">Endpoints</a><a href="#probar">Probar</a><a href="#arquitectura">Arquitectura</a>
+        </div>
+        <a class="btn btn-accent" href="cliente.html">Abrir cliente <i class="bi bi-arrow-right ms-1"></i></a>
+    </div>
+</nav>
+
+<header class="hero">
+    <svg class="pitch-lines" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <g fill="none" stroke="rgba(190,242,100,.18)" stroke-width="2">
+            <rect x="100" y="80" width="1000" height="640" rx="6"/><line x1="600" y1="80" x2="600" y2="720"/>
+            <circle cx="600" cy="400" r="95"/><rect x="100" y="250" width="150" height="300"/><rect x="950" y="250" width="150" height="300"/>
+            <rect x="100" y="330" width="55" height="140"/><rect x="1045" y="330" width="55" height="140"/>
+        </g>
+    </svg>
+    <div class="container">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-6">
+                <span class="hero-badge"><b id="estadoApi">…</b> Servidor Spring Boot · puerto 8081</span>
+                <h1>Tus datos de fútbol,<br><span class="hl">en JSON.</span></h1>
+                <p class="lead">Una API REST con Spring Boot y MongoDB Atlas. El servidor expone los datos y cualquier cliente los consume: esta web, Postman, una app móvil o un frontend en React.</p>
+                <div class="d-flex flex-wrap gap-3 mt-4">
+                    <a class="btn btn-accent" href="cliente.html"><i class="bi bi-window-sidebar me-2"></i>Abrir el cliente web</a>
+                    <a class="btn btn-ghost-light" href="Club-API-REST.postman_collection.json" download><i class="bi bi-download me-2"></i>Colección Postman</a>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-3 mt-4 small" style="color:#86a898">
+                    <span><i class="bi bi-check2-circle text-success me-1"></i>GET · POST · PUT · DELETE</span>
+                    <span><i class="bi bi-check2-circle text-success me-1"></i>Códigos HTTP correctos</span>
+                    <span><i class="bi bi-check2-circle text-success me-1"></i>CORS habilitado</span>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="console" style="transform:perspective(1400px) rotateY(-6deg) rotateX(3deg)">
+                    <div class="console-bar">
+                        <div class="mock-dots m-0"><span></span><span></span><span></span></div>
+                        <span class="method m-get ms-2">GET</span>
+                        <code style="background:none;color:#e6f2ec">/api/clubes</code>
+                        <span class="ms-auto small" style="color:#86a898" id="heroStatus">200 OK</span>
+                    </div>
+<pre id="heroJson">[
+  {
+    <span class="json-key">"id"</span>: <span class="json-str">"66fa1c0e9b1d4a2f7c3e5a10"</span>,
+    <span class="json-key">"nombre"</span>: <span class="json-str">"Millonarios"</span>,
+    <span class="json-key">"entrenador"</span>: { <span class="json-key">"nombre"</span>: <span class="json-str">"Andrés"</span>, ... },
+    <span class="json-key">"jugadores"</span>: [ ... ],
+    <span class="json-key">"asociacion"</span>: { <span class="json-key">"nombre"</span>: <span class="json-str">"FCF"</span> },
+    <span class="json-key">"competiciones"</span>: [ ... ]
+  }
+]</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<section class="stats-band">
+    <div class="container">
+        <div class="row row-cols-2 row-cols-md-5">
+            <div class="stat"><div class="n" data-total="clubes">–</div><div class="t">/api/clubes</div></div>
+            <div class="stat"><div class="n" data-total="entrenadores">–</div><div class="t">/api/entrenadores</div></div>
+            <div class="stat"><div class="n" data-total="jugadores">–</div><div class="t">/api/jugadores</div></div>
+            <div class="stat"><div class="n" data-total="asociaciones">–</div><div class="t">/api/asociaciones</div></div>
+            <div class="stat"><div class="n" data-total="competiciones">–</div><div class="t">/api/competiciones</div></div>
+        </div>
+    </div>
+</section>
+
+<section class="l-section" id="endpoints">
+    <div class="container">
+        <div class="text-center mx-auto mb-5 reveal" style="max-width:720px">
+            <div class="l-eyebrow">Endpoints</div>
+            <h2 class="l-title">5 recursos, un mismo patrón</h2>
+            <p class="l-sub mx-auto">Cada entidad tiene su <code style="background:rgba(255,255,255,.08);color:#d9f99d">@RestController</code>. El Club es la clase maestra y recibe los <strong>ids</strong> de sus relaciones.</p>
+        </div>
+        <div class="row g-4">
+            <div class="col-lg-6 reveal"><div class="feature">
+                <div class="d-flex align-items-center gap-3 mb-3"><div class="f-icon mb-0"><i class="bi bi-shield-fill"></i></div><div><h3 class="mb-0">/api/clubes</h3><span class="small" style="color:#86a898">Clase maestra · 4 relaciones</span></div></div>
+                <div class="endpoint"><span class="method m-get">GET</span>/api/clubes<span class="desc">Listar con relaciones</span></div>
+                <div class="endpoint"><span class="method m-get">GET</span>/api/clubes/{id}<span class="desc">Buscar uno</span></div>
+                <div class="endpoint"><span class="method m-post">POST</span>/api/clubes<span class="desc">Crear · 201</span></div>
+                <div class="endpoint"><span class="method m-put">PUT</span>/api/clubes/{id}<span class="desc">Actualizar</span></div>
+                <div class="endpoint"><span class="method m-delete">DELETE</span>/api/clubes/{id}<span class="desc">Eliminar · 204</span></div>
+                <div class="endpoint"><span class="method m-post">POST</span>/api/clubes/{id}/jugadores/{jugadorId}<span class="desc">Fichar jugador</span></div>
+            </div></div>
+            <div class="col-lg-6 reveal"><div class="feature">
+                <div class="d-flex align-items-center gap-3 mb-3"><div class="f-icon mb-0"><i class="bi bi-collection-fill"></i></div><div><h3 class="mb-0">Entidades relacionadas</h3><span class="small" style="color:#86a898">Mismo CRUD para las 4</span></div></div>
+                <div class="endpoint"><span class="method m-get">GET</span>/api/entrenadores<span class="desc">@OneToOne</span></div>
+                <div class="endpoint"><span class="method m-get">GET</span>/api/jugadores<span class="desc">@OneToMany</span></div>
+                <div class="endpoint"><span class="method m-get">GET</span>/api/asociaciones<span class="desc">@ManyToOne</span></div>
+                <div class="endpoint"><span class="method m-get">GET</span>/api/competiciones<span class="desc">@ManyToMany</span></div>
+                <div class="endpoint"><span class="method m-post">POST</span>/api/{recurso}<span class="desc">Crear</span></div>
+                <div class="endpoint"><span class="method m-delete">DELETE</span>/api/{recurso}/{id}<span class="desc">409 si un club lo usa</span></div>
+            </div></div>
+        </div>
+    </div>
+</section>
+
+<section class="l-section pt-0" id="probar">
+    <div class="container">
+        <div class="row g-5 align-items-center">
+            <div class="col-lg-5 reveal">
+                <div class="l-eyebrow">Pruébalo en vivo</div>
+                <h2 class="l-title">Haz una petición real</h2>
+                <p class="l-sub">Escoge un endpoint y mira la respuesta que devuelve el servidor desde MongoDB Atlas, tal como la vería Postman.</p>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <span class="chip" style="background:rgba(255,255,255,.05);color:#e6f2ec;border-color:rgba(255,255,255,.1)">200 OK</span>
+                    <span class="chip" style="background:rgba(255,255,255,.05);color:#e6f2ec;border-color:rgba(255,255,255,.1)">201 Created</span>
+                    <span class="chip" style="background:rgba(255,255,255,.05);color:#e6f2ec;border-color:rgba(255,255,255,.1)">204 No Content</span>
+                    <span class="chip" style="background:rgba(255,255,255,.05);color:#e6f2ec;border-color:rgba(255,255,255,.1)">404 Not Found</span>
+                    <span class="chip" style="background:rgba(255,255,255,.05);color:#e6f2ec;border-color:rgba(255,255,255,.1)">409 Conflict</span>
+                </div>
+            </div>
+            <div class="col-lg-7 reveal">
+                <div class="console">
+                    <div class="console-bar">
+                        <span class="method m-get">GET</span>
+                        <select id="probarRuta" aria-label="Endpoint">
+                            <option>/api/clubes</option><option>/api/entrenadores</option><option>/api/jugadores</option>
+                            <option>/api/asociaciones</option><option>/api/competiciones</option>
+                        </select>
+                        <button class="btn btn-accent btn-sm ms-auto" id="probarBtn"><i class="bi bi-send-fill me-1"></i>Enviar</button>
+                    </div>
+                    <div class="console-bar py-2 small" style="color:#86a898"><span id="probarInfo">Presiona Enviar</span></div>
+                    <pre id="probarJson">// La respuesta aparecerá aquí</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="l-section pt-0" id="arquitectura">
+    <div class="container">
+        <div class="text-center mx-auto mb-5 reveal" style="max-width:720px">
+            <div class="l-eyebrow">Servidor-cliente</div>
+            <h2 class="l-title">El servidor no dibuja páginas: responde datos</h2>
+            <p class="l-sub mx-auto">A diferencia del entregable 1, aquí el cliente arma la interfaz con los JSON que recibe de la API.</p>
+        </div>
+        <div class="flow reveal">
+            <div class="flow-step"><div class="f-icon tone-sky"><i class="bi bi-phone"></i></div><h4>Cliente</h4><p>Web (fetch), Postman,<br>app móvil...</p></div>
+            <i class="bi bi-arrow-left-right flow-arrow"></i>
+            <div class="flow-step"><div class="f-icon tone-lime"><i class="bi bi-braces-asterisk"></i></div><h4>API REST</h4><p>Spring Boot · @RestController<br>JSON + códigos HTTP</p></div>
+            <i class="bi bi-arrow-left-right flow-arrow"></i>
+            <div class="flow-step"><div class="f-icon tone-green"><i class="bi bi-database-fill"></i></div><h4>MongoDB Atlas</h4><p>Spring Data MongoDB<br>@DocumentReference</p></div>
+        </div>
+    </div>
+</section>
+
+<section class="pb-5">
+    <div class="container reveal">
+        <div class="cta-band">
+            <h2>Consume la API con el cliente web</h2>
+            <p class="mb-4 fw-medium">Crea, edita y elimina clubes, jugadores y competiciones viendo cada petición HTTP en tiempo real.</p>
+            <a class="btn btn-pitch btn-lg px-4" href="cliente.html">Abrir el cliente <i class="bi bi-arrow-right ms-1"></i></a>
+        </div>
+    </div>
+</section>
+
+<footer class="l-footer">
+    <div class="container d-flex flex-wrap justify-content-between gap-2">
+        <span>© 2026 GolData API · Relaciones Spring Framework + MongoDB</span>
+        <span>Entregable 2 · Servidor-cliente con API REST</span>
+    </div>
+</footer>
+
+<script>
+(function () {
+    'use strict';
+    // Si abre el archivo directo (file://) usa el servidor local
+    var API = location.protocol.indexOf('http') === 0 ? '' : 'http://localhost:8081';
+
+    function pintarJson(obj) {
+        var txt = JSON.stringify(obj, null, 2)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return txt.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?)/g, function (m) {
+            var cls = 'json-num';
+            if (/^"/.test(m)) cls = /:$/.test(m) ? 'json-key' : 'json-str';
+            else if (/true|false|null/.test(m)) cls = 'json-bool';
+            return '<span class="' + cls + '">' + m + '</span>';
+        });
+    }
+
+    // Totales en vivo
+    var recursos = ['clubes', 'entrenadores', 'jugadores', 'asociaciones', 'competiciones'];
+    Promise.all(recursos.map(function (r) {
+        return fetch(API + '/api/' + r).then(function (x) { return x.json(); }).then(function (d) {
+            var el = document.querySelector('[data-total="' + r + '"]');
+            if (el) el.textContent = d.length;
+            return d;
+        });
+    })).then(function (res) {
+        document.getElementById('estadoApi').textContent = 'EN LÍNEA';
+        if (res[0].length) document.getElementById('heroJson').innerHTML = pintarJson(res[0].slice(0, 1));
+    }).catch(function () {
+        document.getElementById('estadoApi').textContent = 'SIN CONEXIÓN';
+        document.getElementById('heroStatus').textContent = 'ejemplo';
+    });
+
+    // Consola de prueba
+    document.getElementById('probarBtn').addEventListener('click', function () {
+        var ruta = document.getElementById('probarRuta').value;
+        var info = document.getElementById('probarInfo');
+        var out = document.getElementById('probarJson');
+        var t0 = performance.now();
+        info.textContent = 'Enviando…';
+        fetch(API + ruta).then(function (r) {
+            var ms = Math.round(performance.now() - t0);
+            return r.json().then(function (d) {
+                info.innerHTML = '<strong style="color:' + (r.ok ? '#4ade80' : '#f87171') + '">' + r.status + ' ' + (r.ok ? 'OK' : 'Error') + '</strong> · ' + ms + ' ms · ' + (Array.isArray(d) ? d.length + ' documentos' : '');
+                out.innerHTML = pintarJson(d);
+            });
+        }).catch(function (e) {
+            info.textContent = 'No se pudo conectar con la API (' + e.message + ')';
+        });
+    });
+
+    // Animaciones
+    var nav = document.querySelector('.l-nav');
+    var onScroll = function () { nav.classList.toggle('scrolled', window.scrollY > 30); };
+    window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
+    var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: .12 });
+    document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+})();
+</script>
+</body>
+</html>

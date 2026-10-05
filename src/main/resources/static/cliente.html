@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cliente · GolData API</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%BD%3C/text%3E%3C/svg%3E">
+    <link href="vendor/fonts/fonts.css" rel="stylesheet">
+    <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="vendor/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/app.css" rel="stylesheet">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="brand" href="index.html">
+            <span class="brand-mark"><i class="bi bi-braces"></i></span>
+            <span class="brand-name">GolData API<small>CLIENTE REST · FETCH</small></span>
+        </a>
+        <div class="nav-label">General</div>
+        <a class="side-link" href="index.html"><i class="bi bi-rocket-takeoff"></i> Página principal</a>
+        <a class="side-link" href="#/inicio" data-view="inicio"><i class="bi bi-grid-1x2"></i> Inicio</a>
+        <div class="nav-label">Recursos</div>
+        <a class="side-link" href="#/clubes" data-view="clubes"><i class="bi bi-shield-fill"></i> Clubes <span class="rel">MAESTRA</span></a>
+        <a class="side-link" href="#/entrenadores" data-view="entrenadores"><i class="bi bi-person-badge"></i> Entrenadores <span class="rel">1:1</span></a>
+        <a class="side-link" href="#/jugadores" data-view="jugadores"><i class="bi bi-people-fill"></i> Jugadores <span class="rel">1:N</span></a>
+        <a class="side-link" href="#/asociaciones" data-view="asociaciones"><i class="bi bi-bank"></i> Asociaciones <span class="rel">N:1</span></a>
+        <a class="side-link" href="#/competiciones" data-view="competiciones"><i class="bi bi-trophy-fill"></i> Competiciones <span class="rel">N:N</span></a>
+        <div class="sidebar-foot">
+            <div class="d-flex align-items-center gap-2 text-white fw-semibold"><span class="status-dot" id="dot"></span> <span id="apiEstado">Conectando…</span></div>
+            <div class="mt-1" style="color:#86a898">Servidor <code style="background:rgba(255,255,255,.08);color:#d9f99d" id="apiUrl">/api</code></div>
+        </div>
+    </aside>
+
+    <div class="app-main">
+        <header class="topbar">
+            <button class="btn-icon menu-toggle" type="button" data-toggle-nav aria-label="Abrir menú"><i class="bi bi-list"></i></button>
+            <nav class="crumbs"><a href="#/inicio"><i class="bi bi-house-door"></i></a><i class="bi bi-chevron-right small"></i><span class="current" id="crumb">Inicio</span></nav>
+            <span class="db-chip"><i class="bi bi-braces"></i><span>Servidor-cliente · API REST</span></span>
+        </header>
+        <main class="app-content">
+            <div id="vista"></div>
+
+            <div class="inspector mt-4">
+                <div class="inspector-head">
+                    <i class="bi bi-terminal"></i> Última petición HTTP
+                    <span id="insMetodo" class="method m-get ms-2">GET</span>
+                    <span id="insUrl" class="text-truncate">—</span>
+                    <span id="insStatus" class="ms-auto"></span>
+                </div>
+                <pre id="insJson">// Aquí verás el JSON que devuelve el servidor</pre>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div class="backdrop" data-toggle-nav></div>
+<div class="toast-stack" id="toasts"></div>
+
+<!-- Formulario lateral -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="panelForm" style="width:min(560px,100vw)">
+    <div class="offcanvas-header">
+        <div class="d-flex align-items-center gap-3">
+            <span class="avatar avatar-lg" id="formIcono"></span>
+            <div><h5 class="offcanvas-title fw-bold mb-0" id="formTitulo">Nuevo</h5><div class="small text-secondary" id="formSub"></div></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+    </div>
+    <div class="offcanvas-body">
+        <form id="formulario" novalidate>
+            <div id="formError"></div>
+            <div id="formCampos" class="row g-3"></div>
+            <div class="d-flex gap-2 justify-content-end mt-4">
+                <button type="button" class="btn btn-ghost" data-bs-dismiss="offcanvas">Cancelar</button>
+                <button type="submit" class="btn btn-pitch" id="formBtn"><i class="bi bi-send-fill me-1"></i> Enviar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Confirmación -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+        <div class="modal-content p-4 text-center">
+            <div class="modal-icon"><i class="bi bi-trash3"></i></div>
+            <h5 class="fw-bold mb-2">¿Eliminar registro?</h5>
+            <p class="text-secondary mb-1">Vas a eliminar <strong id="confirmNombre"></strong>.</p>
+            <p class="small mb-4"><span class="method m-delete">DELETE</span> <code id="confirmUrl"></code></p>
+            <div class="d-flex gap-2 justify-content-center">
+                <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmSi">Sí, eliminar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script>
+(function () {
+    'use strict';
+    // Si abre este archivo directo (file://) se conecta al servidor en localhost:8081
+    var API = location.protocol.indexOf('http') === 0 ? '' : 'http://localhost:8081';
+    document.getElementById('apiUrl').textContent = (API || location.origin) + '/api';
+
+    var R = {
+        clubes: { titulo: 'Clubes', sing: 'club', icon: 'bi-shield-fill', tone: 'tone-green', rel: 'Clase maestra · @Document(collection = "clubes")',
+            desc: 'Recibe los ids de sus relaciones y devuelve los documentos ya resueltos.' },
+        entrenadores: { titulo: 'Entrenadores', sing: 'entrenador', icon: 'bi-person-badge', tone: 'tone-green', rel: 'Relación uno a uno · @OneToOne',
+            desc: 'Cada entrenador dirige a un solo club.',
+            campos: [['nombre', 'Nombre', 'text', 'bi-person', 'col-md-6'], ['apellido', 'Apellido', 'text', 'bi-person', 'col-md-6'],
+                     ['edad', 'Edad', 'number', 'bi-calendar3', 'col-md-4'], ['nacionalidad', 'Nacionalidad', 'text', 'bi-globe-americas', 'col-md-8']] },
+        jugadores: { titulo: 'Jugadores', sing: 'jugador', icon: 'bi-people-fill', tone: 'tone-rose', rel: 'Relación uno a muchos · @OneToMany',
+            desc: 'Un club tiene muchos jugadores; cada jugador pertenece a un club.',
+            campos: [['nombre', 'Nombre', 'text', 'bi-person', 'col-md-6'], ['apellido', 'Apellido', 'text', 'bi-person', 'col-md-6'],
+                     ['numero', 'Dorsal', 'number', 'bi-hash', 'col-md-4'], ['posicion', 'Posición', 'pos', 'bi-crosshair', 'col-md-8']] },
+        asociaciones: { titulo: 'Asociaciones', sing: 'asociación', icon: 'bi-bank', tone: 'tone-sky', rel: 'Relación muchos a uno · @ManyToOne',
+            desc: 'Muchos clubes pertenecen a una misma asociación.',
+            campos: [['nombre', 'Nombre', 'text', 'bi-bank', 'col-12'], ['pais', 'País', 'text', 'bi-geo-alt', 'col-md-6'],
+                     ['presidente', 'Presidente', 'text', 'bi-person-vcard', 'col-md-6']] },
+        competiciones: { titulo: 'Competiciones', sing: 'competición', icon: 'bi-trophy-fill', tone: 'tone-gold', rel: 'Relación muchos a muchos · @ManyToMany',
+            desc: 'Un club juega muchas competiciones y cada una tiene muchos clubes.',
+            campos: [['nombre', 'Nombre', 'text', 'bi-trophy', 'col-12'], ['montoPremio', 'Monto del premio (COP)', 'number', 'bi-cash-coin', 'col-12'],
+                     ['fechaInicio', 'Fecha de inicio', 'date', 'bi-calendar-event', 'col-md-6'], ['fechaFin', 'Fecha de fin', 'date', 'bi-calendar-check', 'col-md-6']] }
+    };
+    var POS = ['Portero', 'Defensa', 'Volante', 'Mediocampista', 'Delantero'];
+    var vistaActual = 'inicio';
+    var datos = {};
+    var panel = new bootstrap.Offcanvas(document.getElementById('panelForm'));
+    var modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+
+    // ------------------------------------------------------------ utilidades
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function ini(p) { return p ? esc(((p.nombre || '').charAt(0) + (p.apellido || '').charAt(0)).toUpperCase() || '?') : '?'; }
+    function plata(n) { return '$ ' + Number(n || 0).toLocaleString('es-CO'); }
+    function fecha(f) { if (!f) return ''; var p = f.split('-'); var m = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic']; return p[2] + ' ' + m[+p[1] - 1] + ' ' + p[0]; }
+    function posClase(p) { return p && p.length >= 3 ? 'pos-' + p.substring(0, 3).toLowerCase() : ''; }
+    function estadoChip(e) { var c = e === 'En curso' ? 'chip-live' : (e === 'Próxima' ? 'chip-soon' : 'chip-done'); var i = e === 'En curso' ? 'bi-broadcast' : (e === 'Próxima' ? 'bi-calendar-event' : 'bi-flag-fill'); return '<span class="chip ' + c + '"><i class="bi ' + i + '"></i> ' + esc(e) + '</span>'; }
+    function pintarJson(obj) {
+        var txt = JSON.stringify(obj, null, 2);
+        if (txt === undefined) return '// Sin contenido (204 No Content)';
+        txt = txt.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return txt.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?)/g, function (m) {
+            var cls = 'json-num';
+            if (/^"/.test(m)) cls = /:$/.test(m) ? 'json-key' : 'json-str';
+            else if (/true|false|null/.test(m)) cls = 'json-bool';
+            return '<span class="' + cls + '">' + m + '</span>';
+        });
+    }
+    function toast(msg, ok) {
+        var t = document.createElement('div');
+        t.className = 'toast-x ' + (ok ? 'ok' : 'err');
+        t.innerHTML = '<i class="bi ' + (ok ? 'bi-check-circle-fill' : 'bi-exclamation-octagon-fill') + '"></i><div><strong>' + (ok ? 'Listo' : 'Error de la API') + '</strong><div>' + esc(msg) + '</div></div>';
+        document.getElementById('toasts').appendChild(t);
+        setTimeout(function () { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 300); }, 4500);
+    }
+
+    // ------------------------------------------------------------ petición HTTP (fetch)
+    function req(metodo, ruta, cuerpo) {
+        var t0 = performance.now();
+        return fetch(API + '/api/' + ruta, {
+            method: metodo,
+            headers: { 'Content-Type': 'application/json' },
+            body: cuerpo ? JSON.stringify(cuerpo) : undefined
+        }).then(function (resp) {
+            return resp.text().then(function (txt) {
+                var data = txt ? JSON.parse(txt) : undefined;
+                var ms = Math.round(performance.now() - t0);
+                var m = document.getElementById('insMetodo');
+                m.textContent = metodo; m.className = 'method m-' + metodo.toLowerCase() + ' ms-2';
+                document.getElementById('insUrl').textContent = '/api/' + ruta;
+                document.getElementById('insStatus').innerHTML = '<span style="color:' + (resp.ok ? '#4ade80' : '#f87171') + '">' + resp.status + '</span> · ' + ms + ' ms';
+                document.getElementById('insJson').innerHTML = pintarJson(cuerpo && !resp.ok ? { enviado: cuerpo, respuesta: data } : data);
+                if (!resp.ok) throw new Error(data && data.error ? data.error : 'Error ' + resp.status);
+                return data;
+            });
+        });
+    }
+    function cargarTodo() {
+        var nombres = Object.keys(R);
+        return Promise.all(nombres.map(function (r) { return fetch(API + '/api/' + r).then(function (x) { if (!x.ok) throw new Error(x.status); return x.json(); }); }))
+            .then(function (res) {
+                nombres.forEach(function (r, i) { datos[r] = res[i]; });
+                document.getElementById('apiEstado').textContent = 'API en línea';
+                document.getElementById('dot').style.background = '';
+            });
+    }
+
+    // ------------------------------------------------------------ relaciones vistas "desde el otro lado"
+    function clubDe(tipo, id) {
+        var c = (datos.clubes || []).filter(function (c) {
+            if (tipo === 'entrenadores') return c.entrenador && c.entrenador.id === id;
+            if (tipo === 'jugadores') return (c.jugadores || []).some(function (j) { return j && j.id === id; });
+            return false;
+        })[0];
+        return c ? c.nombre : null;
+    }
+    function cuantosClubes(tipo, id) {
+        return (datos.clubes || []).filter(function (c) {
+            if (tipo === 'asociaciones') return c.asociacion && c.asociacion.id === id;
+            return (c.competiciones || []).some(function (x) { return x && x.id === id; });
+        }).length;
+    }
+
+    // ------------------------------------------------------------ vistas
+    function cabecera(r, boton) {
+        var cfg = R[r];
+        return '<div class="page-head"><div><div class="eyebrow"><i class="bi bi-diagram-3"></i> ' + esc(cfg.rel) + '</div>' +
+            '<h1>' + cfg.titulo + '</h1><p>' + cfg.desc + ' <span class="method m-get">GET</span> <code>/api/' + r + '</code></p></div>' +
+            '<div class="d-flex gap-2 flex-wrap"><div class="search" style="min-width:230px"><i class="bi bi-search"></i><input type="search" placeholder="Buscar..." id="buscar"></div>' +
+            '<button class="btn btn-pitch" data-nuevo="' + r + '"><i class="bi bi-plus-lg me-1"></i> ' + boton + '</button></div></div>';
+    }
+    function vacio(r) {
+        return '<div class="panel empty"><div class="empty-icon"><i class="bi ' + R[r].icon + '"></i></div><h3>La colección está vacía</h3>' +
+            '<p>Crea el primer documento con una petición <span class="method m-post">POST</span></p>' +
+            '<button class="btn btn-accent mt-2" data-nuevo="' + r + '"><i class="bi bi-plus-lg me-1"></i> Crear</button></div>';
+    }
+    function acciones(r, x, nombre) {
+        return '<div class="actions"><button class="btn-icon" data-editar="' + r + '|' + x.id + '" title="Editar (PUT)"><i class="bi bi-pencil"></i></button>' +
+            '<button class="btn-icon danger" data-eliminar="' + r + '|' + x.id + '" data-nombre="' + esc(nombre) + '" title="Eliminar (DELETE)"><i class="bi bi-trash3"></i></button></div>';
+    }
+    function tabla(cols, filas) {
+        return '<div class="panel"><div class="table-responsive"><table class="table-modern" id="tabla"><thead><tr>' +
+            cols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '<th></th></tr></thead><tbody>' + filas + '</tbody></table></div></div>';
+    }
+
+    function vistaInicio() {
+        var kpi = function (r, extra) {
+            var cfg = R[r];
+            return '<div class="col-6 col-lg"><a class="kpi ' + (extra || '') + '" href="#/' + r + '"><span class="kpi-rel">' + (r === 'clubes' ? 'MAESTRA' : cfg.rel.split('·')[1].trim().replace('@', '')) + '</span>' +
+                '<div class="kpi-icon ' + (r === 'clubes' ? 'tone-lime' : cfg.tone) + '"><i class="bi ' + cfg.icon + '"></i></div>' +
+                '<div class="kpi-value">' + (datos[r] || []).length + '</div><div class="kpi-label">' + cfg.titulo + '</div></a></div>';
+        };
+        var endpoints = [['GET', 'clubes', 'Listar clubes con relaciones'], ['POST', 'clubes', 'Crear club con ids'], ['GET', 'jugadores', 'Listar jugadores'],
+            ['PUT', 'entrenadores/{id}', 'Actualizar entrenador'], ['DELETE', 'competiciones/{id}', 'Eliminar (409 si se usa)']];
+        var clubesHtml = (datos.clubes || []).map(function (c) {
+            return '<div class="list-row"><span class="avatar" style="background:var(--pitch-800);color:var(--lime-400)">' + esc((c.nombre || '?').charAt(0).toUpperCase()) + '</span>' +
+                '<div class="flex-grow-1"><div class="fw-semibold">' + esc(c.nombre) + '</div><div class="small text-secondary">' + esc(c.entrenador ? c.entrenador.nombre + ' ' + c.entrenador.apellido : 'Sin entrenador') + ' · ' + (c.jugadores || []).length + ' jugadores</div></div>' +
+                '<span class="chip"><i class="bi bi-trophy-fill text-warning"></i> ' + (c.competiciones || []).length + '</span></div>';
+        }).join('') || '<p class="text-secondary mb-0">Aún no hay clubes.</p>';
+        return '<div class="page-head"><div><div class="eyebrow"><i class="bi bi-activity"></i> Panel del cliente</div><h1>Bienvenido al cliente REST</h1>' +
+            '<p>Esta página no la arma el servidor: pide JSON a la API con <code>fetch()</code> y dibuja la interfaz en el navegador.</p></div>' +
+            '<a class="btn btn-pitch" href="#/clubes"><i class="bi bi-shield-fill me-1"></i> Ir a clubes</a></div>' +
+            '<div class="row g-3 mb-4">' + kpi('clubes', 'featured') + kpi('entrenadores') + kpi('jugadores') + kpi('asociaciones') + kpi('competiciones') + '</div>' +
+            '<div class="row g-4"><div class="col-xl-7"><div class="panel h-100"><div class="panel-head"><h2><i class="bi bi-shield-fill me-2 text-success"></i>Clubes</h2><span class="method m-get">GET /api/clubes</span></div><div class="panel-body py-2">' + clubesHtml + '</div></div></div>' +
+            '<div class="col-xl-5"><div class="panel h-100"><div class="panel-head"><h2><i class="bi bi-signpost-split me-2 text-success"></i>Endpoints principales</h2></div><div class="panel-body py-2">' +
+            endpoints.map(function (e) { return '<div class="list-row"><span class="method m-' + e[0].toLowerCase() + '">' + e[0] + '</span><code>/api/' + e[1] + '</code><span class="ms-auto small text-secondary text-end">' + e[2] + '</span></div>'; }).join('') +
+            '</div></div></div></div>';
+    }
+
+    function vistaClubes() {
+        var lista = datos.clubes || [];
+        var html = cabecera('clubes', 'Nuevo club');
+        if (!lista.length) return html + vacio('clubes');
+        return html + '<div class="row g-4" id="tabla">' + lista.map(function (c, i) {
+            var jug = (c.jugadores || []).filter(Boolean);
+            var comps = (c.competiciones || []).filter(Boolean);
+            return '<div class="col-md-6 col-xxl-4" data-row><article class="club-card"><div class="club-cover cover-' + (i % 6 + 1) + '"><span class="pitch-circle"></span></div>' +
+                '<span class="club-crest">' + esc((c.nombre || '?').charAt(0).toUpperCase()) + '</span><div class="club-body"><h3>' + esc(c.nombre) + '</h3>' +
+                '<div class="text-secondary small"><i class="bi bi-bank me-1"></i>' + esc(c.asociacion ? c.asociacion.nombre : 'Sin asociación') + '</div>' +
+                '<div class="club-meta"><div class="meta-box"><div class="k">Entrenador <span class="rel-tag">1:1</span></div><div class="v">' + esc(c.entrenador ? c.entrenador.nombre + ' ' + c.entrenador.apellido : 'Sin asignar') + '</div></div>' +
+                '<div class="meta-box"><div class="k">Plantilla <span class="rel-tag">1:N</span></div><div class="v">' + jug.length + ' jugadores</div></div></div>' +
+                '<div class="squad mb-3">' + jug.slice(0, 5).map(function (j) { return '<span class="avatar tone-green" title="' + esc(j.nombre + ' ' + j.apellido) + '">' + esc(j.numero) + '</span>'; }).join('') +
+                (jug.length > 5 ? '<span class="avatar" style="background:#e2e8f0;color:#475569">+' + (jug.length - 5) + '</span>' : '') + '</div>' +
+                '<div class="small text-uppercase fw-semibold text-secondary mb-2" style="font-size:.68rem;letter-spacing:.08em">Competiciones <span class="rel-tag">N:N</span></div><div class="d-flex flex-wrap gap-1">' +
+                (comps.map(function (x) { return '<span class="chip"><i class="bi bi-trophy-fill text-warning"></i> ' + esc(x.nombre) + '</span>'; }).join('') || '<span class="small text-secondary">No participa en competiciones</span>') +
+                '</div></div><div class="club-foot"><span class="small text-secondary text-truncate" style="max-width:55%">_id: ' + esc(c.id) + '</span>' + acciones('clubes', c, c.nombre) + '</div></article></div>';
+        }).join('') + '</div>';
+    }
+
+    function vistaEntidad(r) {
+        var lista = datos[r] || [];
+        var cfg = R[r];
+        var html = cabecera(r, 'Nuevo ' + cfg.sing);
+        if (!lista.length) return html + vacio(r);
+        var clubChip = function (n, libre) { return n ? '<span class="chip chip-club"><i class="bi bi-shield-fill"></i> ' + esc(n) + '</span>' : '<span class="chip chip-free"><i class="bi bi-circle"></i> ' + libre + '</span>'; };
+        var nClubes = function (n) { return '<span class="chip ' + (n ? 'chip-club' : 'chip-free') + '"><i class="bi bi-shield-fill"></i> ' + n + (n === 1 ? ' club' : ' clubes') + '</span>'; };
+        var filas = lista.map(function (x) {
+            var celdas;
+            if (r === 'entrenadores') celdas = '<td><div class="cell-main"><span class="avatar round tone-green">' + ini(x) + '</span><div><div class="cell-title">' + esc(x.nombre + ' ' + x.apellido) + '</div><div class="cell-sub">ID ' + esc(x.id) + '</div></div></div></td>' +
+                '<td>' + esc(x.edad) + ' <span class="text-secondary small">años</span></td><td><span class="chip"><i class="bi bi-globe-americas"></i> ' + esc(x.nacionalidad) + '</span></td><td>' + clubChip(clubDe(r, x.id), 'Libre') + '</td>';
+            else if (r === 'jugadores') celdas = '<td><div class="cell-main"><span class="jersey">' + esc(x.numero) + '</span><div><div class="cell-title">' + esc(x.nombre + ' ' + x.apellido) + '</div><div class="cell-sub">Dorsal ' + esc(x.numero) + '</div></div></div></td>' +
+                '<td><span class="pos ' + posClase(x.posicion) + '">' + esc(x.posicion) + '</span></td><td>' + clubChip(clubDe(r, x.id), 'Agente libre') + '</td>';
+            else if (r === 'asociaciones') celdas = '<td><div class="cell-main"><span class="avatar tone-sky"><i class="bi bi-bank"></i></span><div><div class="cell-title">' + esc(x.nombre) + '</div><div class="cell-sub"><i class="bi bi-geo-alt"></i> ' + esc(x.pais) + '</div></div></div></td>' +
+                '<td>' + esc(x.presidente) + '</td><td>' + nClubes(cuantosClubes(r, x.id)) + '</td>';
+            else celdas = '<td><div class="cell-main"><span class="avatar tone-gold"><i class="bi bi-trophy-fill"></i></span><div><div class="cell-title">' + esc(x.nombre) + '</div><div class="cell-sub">' + fecha(x.fechaInicio) + '  →  ' + fecha(x.fechaFin) + '</div></div></div></td>' +
+                '<td class="fw-semibold">' + plata(x.montoPremio) + '</td><td style="min-width:150px">' + estadoChip(x.estado) + '<div class="progress mt-2" style="height:5px"><div class="progress-bar bg-success" style="width:' + (x.progreso || 0) + '%"></div></div></td><td>' + nClubes(cuantosClubes(r, x.id)) + '</td>';
+            return '<tr data-row>' + celdas + '<td>' + acciones(r, x, x.nombre + (x.apellido ? ' ' + x.apellido : '')) + '</td></tr>';
+        }).join('');
+        var cols = { entrenadores: ['Entrenador', 'Edad', 'Nacionalidad', 'Club que dirige'], jugadores: ['Jugador', 'Posición', 'Club'],
+            asociaciones: ['Asociación', 'Presidente', 'Clubes afiliados'], competiciones: ['Competición', 'Premio', 'Estado', 'Participantes'] }[r];
+        return html + tabla(cols, filas);
+    }
+
+    function render() {
+        var v = (location.hash.replace('#/', '') || 'inicio');
+        if (v !== 'inicio' && !R[v]) v = 'inicio';
+        vistaActual = v;
+        document.querySelectorAll('[data-view]').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-view') === v); });
+        document.getElementById('crumb').textContent = v === 'inicio' ? 'Inicio' : R[v].titulo;
+        document.body.classList.remove('nav-open');
+        var vista = document.getElementById('vista');
+        vista.innerHTML = v === 'inicio' ? vistaInicio() : (v === 'clubes' ? vistaClubes() : vistaEntidad(v));
+        var b = document.getElementById('buscar');
+        if (b) b.addEventListener('input', function () {
+            var q = b.value.trim().toLowerCase();
+            vista.querySelectorAll('[data-row]').forEach(function (row) { row.style.display = row.textContent.toLowerCase().indexOf(q) !== -1 ? '' : 'none'; });
+        });
+    }
+    function recargar() {
+        return cargarTodo().then(render).catch(function (e) {
+            document.getElementById('apiEstado').textContent = 'Sin conexión';
+            document.getElementById('dot').style.background = '#f43f5e';
+            document.getElementById('vista').innerHTML = '<div class="panel empty"><div class="empty-icon"><i class="bi bi-wifi-off"></i></div><h3>No se pudo conectar con la API</h3>' +
+                '<p>Verifica que el servidor Spring Boot esté corriendo en <code>http://localhost:8081</code> y que la conexión a MongoDB Atlas funcione.</p>' +
+                '<button class="btn btn-accent" onclick="location.reload()"><i class="bi bi-arrow-clockwise me-1"></i> Reintentar</button></div>';
+        });
+    }
+
+    // ------------------------------------------------------------ formulario (POST / PUT)
+    var formRecurso = null, formId = null;
+    function inputHtml(c, valor) {
+        var n = c[0], et = c[1], tipo = c[2], ico = c[3], col = c[4];
+        var control = tipo === 'pos'
+            ? '<select class="form-select" name="' + n + '" required><option value="">Selecciona...</option>' + POS.map(function (p) { return '<option' + (p === valor ? ' selected' : '') + '>' + p + '</option>'; }).join('') + '</select>'
+            : '<input class="form-control" type="' + tipo + '" name="' + n + '" value="' + esc(valor) + '" required' + (tipo === 'number' ? ' min="0"' : '') + '>';
+        return '<div class="' + col + '"><label class="form-label">' + et + '</label><div class="input-icon"><i class="bi ' + ico + '"></i>' + control + '</div></div>';
+    }
+    function pick(name, id, checked, arriba, abajo, icono, deshabilitado) {
+        return '<div class="pick"><input type="checkbox" name="' + name + '" id="p' + id + '" value="' + id + '"' + (checked ? ' checked' : '') + (deshabilitado ? ' disabled' : '') + '>' +
+            '<label for="p' + id + '"' + (deshabilitado ? ' style="opacity:.45;cursor:not-allowed"' : '') + '>' + icono + '<span><span class="fw-semibold d-block">' + esc(arriba) + '</span><span class="small text-secondary">' + esc(abajo) + '</span></span><span class="check"><i class="bi bi-check-lg"></i></span></label></div>';
+    }
+    function abrirForm(r, obj) {
+        formRecurso = r; formId = obj ? obj.id : null;
+        var cfg = R[r];
+        var icono = document.getElementById('formIcono');
+        icono.className = 'avatar avatar-lg ' + cfg.tone; icono.innerHTML = '<i class="bi ' + cfg.icon + '"></i>';
+        document.getElementById('formTitulo').textContent = (obj ? 'Editar ' : 'Nuevo ') + cfg.sing;
+        document.getElementById('formSub').innerHTML = '<span class="method m-' + (obj ? 'put' : 'post') + '">' + (obj ? 'PUT' : 'POST') + '</span> /api/' + r + (obj ? '/' + esc(obj.id) : '');
+        document.getElementById('formError').innerHTML = '';
+        var html;
+        if (r === 'clubes') {
+            var otros = (datos.clubes || []).filter(function (c) { return !obj || c.id !== obj.id; });
+            var entOcup = {}, jugOcup = {};
+            otros.forEach(function (c) {
+                if (c.entrenador) entOcup[c.entrenador.id] = c.nombre;
+                (c.jugadores || []).forEach(function (j) { if (j) jugOcup[j.id] = c.nombre; });
+            });
+            var selJ = obj ? (obj.jugadores || []).filter(Boolean).map(function (j) { return j.id; }) : [];
+            var selC = obj ? (obj.competiciones || []).filter(Boolean).map(function (x) { return x.id; }) : [];
+            html = '<div class="col-12"><label class="form-label">Nombre del club</label><div class="input-icon"><i class="bi bi-shield"></i><input class="form-control" name="nombre" required value="' + esc(obj ? obj.nombre : '') + '" placeholder="Ej: Millonarios"></div></div>' +
+                '<div class="col-md-6"><label class="form-label">Entrenador <span class="rel-tag">1:1</span></label><div class="input-icon"><i class="bi bi-person-badge"></i><select class="form-select" name="entrenadorId"><option value="">— Sin entrenador —</option>' +
+                (datos.entrenadores || []).filter(function (e) { return !entOcup[e.id]; }).map(function (e) { return '<option value="' + e.id + '"' + (obj && obj.entrenador && obj.entrenador.id === e.id ? ' selected' : '') + '>' + esc(e.nombre + ' ' + e.apellido) + '</option>'; }).join('') + '</select></div></div>' +
+                '<div class="col-md-6"><label class="form-label">Asociación <span class="rel-tag">N:1</span></label><div class="input-icon"><i class="bi bi-bank"></i><select class="form-select" name="asociacionId"><option value="">— Sin asociación —</option>' +
+                (datos.asociaciones || []).map(function (a) { return '<option value="' + a.id + '"' + (obj && obj.asociacion && obj.asociacion.id === a.id ? ' selected' : '') + '>' + esc(a.nombre) + '</option>'; }).join('') + '</select></div></div>' +
+                '<div class="col-12"><label class="form-label">Jugadores <span class="rel-tag">1:N</span></label><div class="pick-grid">' +
+                ((datos.jugadores || []).map(function (j) { return pick('jugadoresIds', j.id, selJ.indexOf(j.id) >= 0, j.nombre + ' ' + j.apellido, jugOcup[j.id] ? 'En ' + jugOcup[j.id] : j.posicion, '<span class="jersey" style="width:32px;height:32px;font-size:.85rem">' + esc(j.numero) + '</span>', !!jugOcup[j.id]); }).join('') || '<span class="small text-secondary">No hay jugadores</span>') + '</div></div>' +
+                '<div class="col-12"><label class="form-label">Competiciones <span class="rel-tag">N:N</span></label><div class="pick-grid">' +
+                ((datos.competiciones || []).map(function (x) { return pick('competicionesIds', x.id, selC.indexOf(x.id) >= 0, x.nombre, x.estado, '<span class="avatar tone-gold" style="width:32px;height:32px"><i class="bi bi-trophy-fill"></i></span>', false); }).join('') || '<span class="small text-secondary">No hay competiciones</span>') + '</div></div>' +
+                '<div class="col-12"><div class="help"><i class="bi bi-info-circle"></i> Se envía un JSON con los <strong>ids</strong> (ClubRequest). Los jugadores de otro club aparecen deshabilitados.</div></div>';
+        } else {
+            html = cfg.campos.map(function (c) { return inputHtml(c, obj ? obj[c[0]] : ''); }).join('');
+        }
+        document.getElementById('formCampos').innerHTML = html;
+        panel.show();
+    }
+    document.getElementById('formulario').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var f = e.target;
+        if (!f.checkValidity()) { f.reportValidity(); return; }
+        var fd = new FormData(f), cuerpo = {};
+        if (formRecurso === 'clubes') {
+            cuerpo = { nombre: fd.get('nombre'), entrenadorId: fd.get('entrenadorId') || null, asociacionId: fd.get('asociacionId') || null,
+                jugadoresIds: fd.getAll('jugadoresIds'), competicionesIds: fd.getAll('competicionesIds') };
+        } else {
+            R[formRecurso].campos.forEach(function (c) { cuerpo[c[0]] = c[2] === 'number' ? Number(fd.get(c[0])) : fd.get(c[0]); });
+        }
+        var btn = document.getElementById('formBtn'); btn.disabled = true;
+        req(formId ? 'PUT' : 'POST', formRecurso + (formId ? '/' + formId : ''), cuerpo)
+            .then(function () { panel.hide(); toast((formId ? 'Actualizado' : 'Creado') + ' correctamente.', true); return recargar(); })
+            .catch(function (err) { document.getElementById('formError').innerHTML = '<div class="alert-inline"><i class="bi bi-exclamation-octagon-fill"></i><span>' + esc(err.message) + '</span></div>'; })
+            .then(function () { btn.disabled = false; });
+    });
+
+    // ------------------------------------------------------------ eventos (delegados)
+    var pendiente = null;
+    document.addEventListener('click', function (e) {
+        var t = e.target.closest('[data-nuevo],[data-editar],[data-eliminar],[data-toggle-nav]');
+        if (!t) return;
+        if (t.hasAttribute('data-toggle-nav')) { document.body.classList.toggle('nav-open'); return; }
+        if (t.hasAttribute('data-nuevo')) { abrirForm(t.getAttribute('data-nuevo'), null); return; }
+        var partes = (t.getAttribute('data-editar') || t.getAttribute('data-eliminar')).split('|');
+        if (t.hasAttribute('data-editar')) {
+            req('GET', partes[0] + '/' + partes[1]).then(function (obj) { abrirForm(partes[0], obj); }).catch(function (err) { toast(err.message, false); });
+        } else {
+            pendiente = partes;
+            document.getElementById('confirmNombre').textContent = t.getAttribute('data-nombre');
+            document.getElementById('confirmUrl').textContent = '/api/' + partes[0] + '/' + partes[1];
+            modal.show();
+        }
+    });
+    document.getElementById('confirmSi').addEventListener('click', function () {
+        if (!pendiente) return;
+        var p = pendiente; pendiente = null; modal.hide();
+        req('DELETE', p[0] + '/' + p[1]).then(function () { toast('Eliminado (204 No Content).', true); return recargar(); })
+            .catch(function (err) { toast(err.message, false); });
+    });
+    window.addEventListener('hashchange', render);
+
+    recargar();
+})();
+</script>
+</body>
+</html>
